@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ultra Sonic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=Saira+Semi+Condensed:wght@400;600&display=swap">
+<style>
+  :root { --ink: #050505; --panel: rgba(14,10,10,.94); --line: rgba(255,255,255,.12); --text: #f4f1f1; --muted: #9b9393; --red: #e3001b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: radial-gradient(ellipse at center, #2a0006, #050505 70%) fixed, var(--ink); color: var(--text); font-family: 'Saira Semi Condensed', system-ui, sans-serif; }
+  main { min-height: 100vh; display: grid; place-items: center; padding: 20px 16px; }
+  .card { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--red); border-radius: 14px; padding: 26px 22px; display: grid; gap: 14px; text-align: center; }
+  h1 { margin: 0; font: italic 700 40px 'Chakra Petch', sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+  h1 span, h2 span { color: var(--red); }
+  h2 { margin: 0; font: italic 700 26px 'Chakra Petch', sans-serif; text-transform: uppercase; }
+  p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+  button, .btn { font: 700 15px 'Chakra Petch', sans-serif; letter-spacing: .1em; text-transform: uppercase; padding: 12px 14px; border: 0; border-radius: 10px; background: var(--red); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  input { font: 16px 'Saira Semi Condensed', sans-serif; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: #000; color: #fff; min-width: 0; }
+  input:focus, button:focus-visible { outline: 2px solid var(--red); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; } .row input { flex: 1; }
+  .msg { min-height: 1.3em; color: #ff5a66; }
+  .ok { color: #7be39b; }
+  ul { list-style: none; margin: 0; padding: 0; text-align: left; display: grid; gap: 6px; max-height: 240px; overflow: auto; }
+  li { display: flex; align-items: center; gap: 8px; background: #000; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  li span { flex: 1; min-width: 0; overflow-wrap: anywhere; } li small { color: var(--muted); }
+  li button { padding: 6px 10px; font-size: 12px; }
+  .sec { text-align: left; display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .sec b { font-family: 'Chakra Petch', sans-serif; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; color: #fff; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <!-- sign in -->
+  <section class="card" id="login" hidden>
+    <h1>Ultra <span>Sonic</span></h1>
+    <p>Private game. Sign in with the Google account the owner invited.</p>
+    <button id="signIn">Sign in with Google</button>
+    <p class="msg" id="loginMsg" role="alert"></p>
+  </section>
+  <!-- signed in but not on the list -->
+  <section class="card" id="denied" hidden>
+    <h2>No <span>access</span></h2>
+    <p id="deniedText"></p>
+    <button class="ghost" id="signOut1">Use another account</button>
+  </section>
+  <!-- admin -->
+  <section class="card" id="admin" hidden>
+    <h2>Admin <span>panel</span></h2>
+    <p id="adminWho"></p>
+    <button id="playAdmin">Play Ultra Sonic</button>
+    <div class="sec">
+      <b>Players with access</b>
+      <ul id="list"></ul>
+      <div class="row"><input id="newEmail" type="email" placeholder="friend@gmail.com" aria-label="Friend's Google email"><input id="newName" placeholder="Name" aria-label="Friend's name" style="max-width:120px"></div>
+      <button id="add">Give access</button>
+    </div>
+    <div class="sec">
+      <b>Game file</b>
+      <p id="gameInfo">Checking…</p>
+      <input type="file" id="gameFile" accept=".html,text/html" aria-label="Game file">
+      <button id="upload">Upload game</button>
+    </div>
+    <p class="msg" id="adminMsg" role="status"></p>
+    <button class="ghost" id="signOut2">Sign out</button>
+  </section>
+  <section class="card" id="loading"><h1>Ultra <span>Sonic</span></h1><p id="loadText">Loading…</p></section>
+</main>
+
+<script type="module">
+// ========= 1. PASTE YOUR FIREBASE CONFIG HERE (Firebase console → Project settings → Your apps → Web app) =========
+const firebaseConfig = {
+  apiKey: "AIzaSyAVOU5s_EC-cNYhUj3nt3qWCW_wVirHDyg",
+  authDomain: "ultrasonic-c85a1.firebaseapp.com",
+  projectId: "ultrasonic-c85a1",
+  storageBucket: "ultrasonic-c85a1.firebasestorage.app",
+  messagingSenderId: "931997741867",
+  appId: "1:931997741867:web:846c1f152a6bab505e0b6e"
+};
+// ========= 2. YOUR GOOGLE EMAIL (the admin). Must match the email in the Firestore rules. =========
+const ADMIN_EMAIL = "sahandurairajp@gmail.com";
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const $ = id => document.getElementById(id);
+const show = id => { for (const s of ['login', 'denied', 'admin', 'loading']) $(s).hidden = s !== id; };
+const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
+const isAdmin = u => !!u && u.email && u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+
+$('signIn').onclick = async () => {
+  $('loginMsg').textContent = '';
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { $('loginMsg').textContent = e.code === 'auth/unauthorized-domain' ? 'This website is not added to Firebase yet (Authorized domains).' : e.code === 'auth/popup-closed-by-user' ? '' : 'Sign-in failed: ' + (e.code || e.message); }
+};
+for (const id of ['signOut1', 'signOut2']) $(id).onclick = () => signOut(auth);
+
+// the game itself is stored in Firestore, so only invited players can ever download it
+async function playGame() {
+  show('loading'); $('loadText').textContent = 'Loading the game…';
+  try {
+    const snap = await getDoc(doc(db, 'game', 'main'));
+    if (!snap.exists()) { $('loadText').textContent = 'The owner has not uploaded the game yet.'; return; }
+    const html = snap.data().html;
+    document.open(); document.write(html); document.close(); // swap this page for the game
+  } catch (e) {
+    show('denied'); $('deniedText').textContent = 'You are signed in, but this account is not on the player list. Ask the owner to add it.';
+  }
+}
+
+async function renderAdmin(u) {
+  show('admin'); $('adminWho').textContent = 'Signed in as ' + u.email;
+  const ul = $('list'); ul.innerHTML = '<li><span>Loading…</span></li>';
+  try {
+    const all = await getDocs(collection(db, 'allowed'));
+    ul.innerHTML = '';
+    if (all.empty) ul.innerHTML = '<li><span>Nobody yet. Add a friend below.</span></li>';
+    all.forEach(d => {
+      const li = document.createElement('li'), sp = document.createElement('span'), sm = document.createElement('small'), b = document.createElement('button');
+      sp.textContent = d.id; sm.textContent = d.data().name || ''; b.textContent = 'Remove'; b.className = 'ghost';
+      b.onclick = async () => { if (!confirm('Remove ' + d.id + '?')) return; await deleteDoc(doc(db, 'allowed', d.id)); renderAdmin(u); };
+      li.append(sp, sm, b); ul.append(li);
+    });
+  } catch (e) { ul.innerHTML = ''; $('adminMsg').textContent = 'Could not read the player list. Check the Firestore rules: ' + (e.code || e.message); }
+  try {
+    const g = await getDoc(doc(db, 'game', 'main'));
+    $('gameInfo').textContent = g.exists() ? `Uploaded (${Math.round(g.data().html.length / 1024)} KB)${g.data().updated ? ' on ' + g.data().updated.toDate().toLocaleString() : ''}. Upload again to update it.` : 'Not uploaded yet. Choose ultra-sonic-game.html and press Upload.';
+  } catch (e) { $('gameInfo').textContent = 'Could not check the game file: ' + (e.code || e.message); }
+}
+$('add').onclick = async () => {
+  const email = $('newEmail').value.trim().toLowerCase(), name = $('newName').value.trim().slice(0, 30);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $('adminMsg').textContent = 'Type a full email address.'; return; }
+  try { await setDoc(doc(db, 'allowed', email), { name, added: serverTimestamp() }); $('newEmail').value = $('newName').value = ''; $('adminMsg').innerHTML = '<span class="ok">Added. They can sign in now.</span>'; renderAdmin(auth.currentUser); }
+  catch (e) { $('adminMsg').textContent = 'Could not add: ' + (e.code || e.message); }
+};
+$('upload').onclick = async () => {
+  const f = $('gameFile').files[0];
+  if (!f) { $('adminMsg').textContent = 'Choose the game file first.'; return; }
+  const html = await f.text();
+  if (html.length > 1000000) { $('adminMsg').textContent = 'That file is too big for one Firestore document (1 MB).'; return; }
+  if (!/Ultra Sonic/.test(html)) { $('adminMsg').textContent = 'That does not look like the Ultra Sonic game file.'; return; }
+  $('upload').disabled = true; $('adminMsg').textContent = 'Uploading…';
+  try { await setDoc(doc(db, 'game', 'main'), { html, updated: serverTimestamp() }); $('adminMsg').innerHTML = '<span class="ok">Game uploaded.</span>'; renderAdmin(auth.currentUser); }
+  catch (e) { $('adminMsg').textContent = 'Upload failed: ' + (e.code || e.message); }
+  $('upload').disabled = false;
+};
+$('playAdmin').onclick = playGame;
+
+onAuthStateChanged(auth, u => {
+  if (!u) { show('login'); return; }
+  if (isAdmin(u)) renderAdmin(u); else playGame();
+});
+</script>
+</body>
+</html>
